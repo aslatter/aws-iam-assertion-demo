@@ -12,7 +12,6 @@ import (
 	"os"
 	"time"
 
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
@@ -42,13 +41,6 @@ func mainErr() error {
 		return fmt.Errorf("resolving sts endpoint: %s", err)
 	}
 
-	// create a new signer so we can pre-sign the request
-	s := v4.NewSigner()
-	c, err := awsCfg.Credentials.Retrieve(ctx)
-	if err != nil {
-		return fmt.Errorf("retrieving aws credentials: %s", err)
-	}
-
 	// request to sign
 	req, err := http.NewRequest("POST", endpoint.URI.String(), nil)
 	if err != nil {
@@ -64,12 +56,17 @@ func mainErr() error {
 	payloadHash := sha256.Sum256(formBytes)
 	hex.EncodeToString(payloadHash[:])
 
-	err = s.SignHTTP(ctx, c, req, hex.EncodeToString(payloadHash[:]), "sts", opts.Region, time.Now())
+	c, err := awsCfg.Credentials.Retrieve(ctx)
+	if err != nil {
+		return fmt.Errorf("retrieving aws credentials: %s", err)
+	}
+
+	err = opts.HTTPSignerV4.SignHTTP(ctx, c, req, hex.EncodeToString(payloadHash[:]), "sts", opts.Region, time.Now())
 	if err != nil {
 		return fmt.Errorf("pre-signing sts request: %s", err)
 	}
 
-	// the client would then comunicate:
+	// the client would then communicate:
 	// - sts region
 	// - request-signing date
 	// - authorization
